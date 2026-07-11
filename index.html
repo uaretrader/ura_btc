@@ -1615,9 +1615,15 @@ function scoreMacroBias(id, price, macroCandles) {
     }
     const MAX = 72; const diff = Math.abs(bull - bear);
     let bias = 'NEUTRAL', score = 0;
-    if (bull > bear && diff >= 10) { bias = 'BULL'; score = Math.min(100, Math.round((bull / MAX) * 100)); }
-    else if (bear > bull && diff >= 10) { bias = 'BEAR'; score = Math.min(100, Math.round((bear / MAX) * 100)); }
-    else { score = Math.round(Math.max(bull, bear) * 0.55); }
+    if (bull > bear && diff >= 10) {
+    bias = 'BEAR';   // dibalik
+    score = Math.min(100, Math.round((bear / MAX) * 100));
+} else if (bear > bull && diff >= 10) {
+    bias = 'BULL';   // dibalik
+    score = Math.min(100, Math.round((bull / MAX) * 100));
+} else {
+    score = Math.round(Math.max(bull, bear) * 0.55);
+}
     const valid = score >= BC_SCORE_MIN && bias !== 'NEUTRAL';
     // Compute bull/bear percentage for PDE display
     const bullPct = Math.min(100, Math.round((bull / MAX) * 100));
@@ -1773,13 +1779,9 @@ function scoreMicroEntry(id, price, microCandles, macroBias) {
     f.in_zone = zoneScore > 0 || liquidScore > 0;
 
     // ── READY & LOCK THRESHOLDS ──────────────────────────────────
-    // Dulu: "hasLiquidOrZone" meloloskan entry hanya dari zone proximity (EMA21/RSI_PB)
-    // tanpa bukti reversal nyata → rawan "menangkap pisau jatuh" (buy saat harga masih
-    // turun deras, sell saat harga masih naik deras). Sekarang wajib ada BUKTI reversal:
-    // liquidity sweep, candle pattern (price action), order block, FVG, atau EMA cross.
-    const hasReversalConfirm = liquidScore > 0 || paScore > 0 || microCrossScore > 0 || obScore > 0 || fvgScore > 0;
-    const ready = quality >= MICRO_READY_THRESHOLD && hasReversalConfirm;
-    const lockable = quality >= MICRO_LOCK_THRESHOLD && hasReversalConfirm;
+    const hasLiquidOrZone = liquidScore > 0 || zoneScore >= 8 || obScore > 0 || fvgScore > 0;
+    const ready = quality >= MICRO_READY_THRESHOLD && hasLiquidOrZone;
+    const lockable = quality >= MICRO_LOCK_THRESHOLD && hasLiquidOrZone;
 
     return { ready, lockable, direction, quality, factors: f, zoneType };
 }
@@ -2016,16 +2018,7 @@ function startConfirmationDelay(id, direction, entryPrice, macroScore, zoneType)
         if (macroC.length >= MACRO_MIN && microC.length >= MICRO_MIN) {
             const mb2 = scoreMacroBias(id, lp, macroC);
             const mi2 = scoreMicroEntry(id, lp, microC, mb2);
-            // ── ANTI ADVERSE-MOVE GUARD ───────────────────────────────
-            // mi2/mb2 dihitung ulang dari candle yang SAMA (candle micro 15 detik
-            // belum tentu sudah close baru selama jeda konfirmasi 2.5-3 detik),
-            // jadi revalidasi skor saja tidak cukup untuk menangkap harga yang
-            // sudah berbalik arah selama jeda ini. Cek pergerakan harga mentah
-            // secara langsung terhadap harga saat L3 lock (entryPrice).
-            const atrNow = macroC.length >= 15 ? (calcATR(macroC, 14) || mb2.atr || ATR_FALLBACK[id] || 300) : (mb2.atr || ATR_FALLBACK[id] || 300);
-            const adverseMove = direction === 'buy' ? (entryPrice - lp) : (lp - entryPrice);
-            const adverseMoveOk = adverseMove <= atrNow * 0.15;
-            const stillValid = mb2.valid && (mb2.bias === 'BULL' ? 'buy' : 'sell') === direction && mi2.ready && adverseMoveOk;
+            const stillValid = mb2.valid && (mb2.bias === 'BULL' ? 'buy' : 'sell') === direction && mi2.ready;
             if (stillValid) {
                 executeLockSignal(id, direction, lp, mb2.score, mi2.zoneType || zoneType);
             } else {
