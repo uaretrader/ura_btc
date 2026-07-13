@@ -875,7 +875,7 @@
 
             const LS_SCHEMA_VERSION = 1;
             const CONFIRMATION_WAIT_MS = 1500;
-            const SIGNAL_TIMEOUT_MS = 4 * 60 * 60 * 1000
+            const SIGNAL_TIMEOUT_MS = 4 * 60 * 60 * 1000;
             const COOLDOWN_AFTER_SL_MS = 180000;
             const COOLDOWN_AFTER_TP_MS = 180000;
           
@@ -1814,7 +1814,7 @@ if (hitTP) {
                         if (elapsed >= SIGNAL_TIMEOUT_MS) {
                             s.cooldownUntil = Date.now() + COOLDOWN_AFTER_SL_MS;
                             resetSignal(id);
-                            showToast(`BTC ⏱ TIMEOUT 30m — signal dibatalkan`);
+                            showToast(`BTC ⏱ TIMEOUT 4h — signal dibatalkan`);
                             return;
                         }
                     }
@@ -2219,30 +2219,38 @@ if (hitTP) {
 
                 // ── Countdown timer ──
                 setInterval(() => {
-                    const s = state.btc;
-                    const dotGroup = document.getElementById('signal-dot-group-btc');
-                    const el = document.getElementById('timeout-btc');
-                    if (!el || !dotGroup) return;
-                    const timerActive = s && s.confirmed && !s.breakevenArmed && s.type !== 'none';
-                    if (!timerActive) {
-                        dotGroup.style.display = 'flex';
-                        el.style.display = 'none';
-                        return;
-                    }
-                    dotGroup.style.display = 'none';
-                    el.style.display = 'inline';
-                    const elapsed = Date.now() - (s.confirmedAt || 0);
-                    const remaining = SIGNAL_TIMEOUT_MS - elapsed;
-                    if (remaining <= 0) {
-                        el.textContent = '00:00';
-                        el.className = 'signal-timer-inline danger';
-                        return;
-                    }
-                    const minutes = Math.floor(remaining / 60000);
-                    const seconds = Math.floor((remaining % 60000) / 1000);
-                    el.textContent = String(minutes).padStart(2, '0') + ':' + String(seconds).padStart(2, '0');
-                    el.className = remaining <= 5 * 60 * 1000 ? 'signal-timer-inline amber' : 'signal-timer-inline';
-                }, 1000);
+    const s = state.btc;
+    const dotGroup = document.getElementById('signal-dot-group-btc');
+    const el = document.getElementById('timeout-btc');
+    if (!el || !dotGroup) return;
+    const timerActive = s && s.confirmed && !s.breakevenArmed && s.type !== 'none';
+    if (!timerActive) {
+        dotGroup.style.display = 'flex';
+        el.style.display = 'none';
+        return;
+    }
+    dotGroup.style.display = 'none';
+    el.style.display = 'inline';
+    const elapsed = Date.now() - (s.confirmedAt || 0);
+    const remaining = SIGNAL_TIMEOUT_MS - elapsed;
+    if (remaining <= 0) {
+        el.textContent = '00:00:00';
+        el.className = 'signal-timer-inline danger';
+        return;
+    }
+    const hours = Math.floor(remaining / 3600000);
+    const minutes = Math.floor((remaining % 3600000) / 60000);
+    const seconds = Math.floor((remaining % 60000) / 1000);
+    if (hours > 0) {
+        el.textContent = String(hours).padStart(2, '0') + ':' + 
+                         String(minutes).padStart(2, '0') + ':' + 
+                         String(seconds).padStart(2, '0');
+    } else {
+        el.textContent = String(minutes).padStart(2, '0') + ':' + 
+                         String(seconds).padStart(2, '0');
+    }
+    el.className = remaining <= 5 * 60 * 1000 ? 'signal-timer-inline amber' : 'signal-timer-inline';
+}, 1000);
 
                 document.addEventListener('visibilitychange', () => {
                     if (!document.hidden) {
