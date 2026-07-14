@@ -879,16 +879,16 @@
             const COOLDOWN_AFTER_SL_MS = 180000;
             const COOLDOWN_AFTER_TP_MS = 180000;
           
-            const PRICE_OFFSET_BTC = -62;
+            const PRICE_OFFSET_BTC = -56;
             const MACRO_DUR = { btc: 60000 };
             const MICRO_DUR = { btc: 15000 };
             const MACRO_MIN = 35;
             const MICRO_MIN = 10;
 
             // ── Threshold ──
-            const STRUCT_STRONG_THRESHOLD = 0.15; // 15% dari rentang harga
+            const STRUCT_STRONG_THRESHOLD = 0.18; // 15% dari rentang harga
             const LIQ_PROXIMITY_ATR_MULT = 1.2;
-            const FVG_GAP_THRESHOLD = 0.0008; // 0.08% gap minimal
+            const FVG_GAP_THRESHOLD = 0.0012; // 0.08% gap minimal
 
             // ── Schema migration ──
             function checkAndMigrateSchema() {
