@@ -585,6 +585,63 @@
             transform: translateX(-50%) translateY(0);
         }
 
+        /* ─── MAINTENANCE OVERLAY ─── */
+        #maintenance-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.85);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 99999;
+            backdrop-filter: blur(4px);
+        }
+        #maintenance-overlay.show {
+            display: flex;
+        }
+        #maintenance-overlay .content {
+            text-align: center;
+            color: var(--text-primary);
+            padding: 40px 30px;
+            border: none;
+            border-radius: 2px;
+            background: rgba(0, 0, 0, 0.4);
+            max-width: 380px;
+        }
+        #maintenance-overlay .icon {
+            font-size: 3rem;
+            margin-bottom: 16px;
+            display: block;
+        }
+        #maintenance-overlay .title {
+            font-family: 'Syne', sans-serif;
+            font-size: 1.1rem;
+            font-weight: 700;
+            letter-spacing: 3px;
+            text-transform: uppercase;
+            color: var(--gold);
+            margin-bottom: 10px;
+        }
+        #maintenance-overlay .desc {
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 0.65rem;
+            color: var(--text-muted);
+            letter-spacing: 1px;
+            line-height: 1.8;
+        }
+        #maintenance-overlay .status-dot {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            background: var(--crimson);
+            border-radius: 50%;
+            margin-right: 8px;
+            animation: blink 1.5s infinite;
+        }
+
         /* ─── PDE PANEL (DISEDERHANAKAN) ─── */
         .pde-panel {
             padding: 0;
@@ -863,9 +920,135 @@
     </div>
     <div id="toast"></div>
 
+    <!-- ─── MAINTENANCE OVERLAY ─── -->
+    <div id="maintenance-overlay">
+        <div class="content">
+            <span class="icon">🔧</span>
+            <div class="title">Terminal is under maintenance</div>
+            <div class="desc">
+                <span class="status-dot"></span>
+                System is being updated.<br/>
+                Please check back shortly.
+            </div>
+        </div>
+    </div>
+
     <script>
         (function() {
             'use strict';
+
+            // ================================================================
+            //  MAINTENANCE SCHEDULED MODE — TERJADWAL OTOMATIS
+            // ================================================================
+
+            // ─── KONFIGURASI ──────────────────────────────────────────────────
+            const MAINTENANCE_CONFIG = {
+                enabled: true,              // ← Ubah ke false untuk nonaktifkan jadwal otomatis
+                startHour: 14,              // 14:00 WIB mulai maintenance
+                endHour: 3,                 // 03:00 WIB berakhir maintenance (next day)
+                weekendFull: true,          // Sabtu-Minggu full maintenance
+                timezone: 'Asia/Jakarta',   // Waktu Indonesia Barat
+                checkInterval: 30000,       // Cek setiap 30 detik
+            };
+
+            // ─── OVERRIDE MANUAL ──────────────────────────────────────────────
+            // null = ikuti jadwal, true = paksa ON, false = paksa OFF
+            let manualOverride = null;
+
+            // Fungsi untuk override manual (bisa dipanggil dari Console)
+            window.setMaintenanceOverride = function(state) {
+                manualOverride = state;
+                const status = state === true ? 'ON (manual)' : state === false ? 'OFF (manual)' : 'AUTO (jadwal)';
+                console.log('🔧 Maintenance override:', status);
+                checkScheduledMaintenance();
+                return status;
+            };
+
+            // ─── PENGECEKAN JADWAL ────────────────────────────────────────────
+            function isWeekend(day) {
+                return day === 0 || day === 6; // 0=Minggu, 6=Sabtu
+            }
+
+            function isMaintenanceScheduled() {
+                // Jika manual override aktif, abaikan jadwal
+                if (manualOverride !== null) {
+                    return manualOverride;
+                }
+
+                // Jika maintenance terjadwal dimatikan
+                if (!MAINTENANCE_CONFIG.enabled) {
+                    return false;
+                }
+
+                const now = new Date();
+                const jakartaTime = new Date(now.toLocaleString('en-US', { timeZone: MAINTENANCE_CONFIG.timezone }));
+                const day = jakartaTime.getDay();
+                const hours = jakartaTime.getHours();
+                const minutes = jakartaTime.getMinutes();
+                const currentTime = hours + minutes / 60;
+
+                // ── Weekend (Sabtu = 6, Minggu = 0) ──
+                if (MAINTENANCE_CONFIG.weekendFull && isWeekend(day)) {
+                    return true; // Full maintenance di weekend
+                }
+
+                // ── Weekday (Senin - Jumat) ──
+                const start = MAINTENANCE_CONFIG.startHour;
+                const end = MAINTENANCE_CONFIG.endHour;
+
+                if (start > end) {
+                    // Periode melewati tengah malam (14:00 - 03:00)
+                    return currentTime >= start || currentTime < end;
+                } else {
+                    return currentTime >= start && currentTime < end;
+                }
+            }
+
+            // ─── UPDATE MAINTENANCE STATUS ──────────────────────────────────
+            function checkScheduledMaintenance() {
+                const shouldMaintenance = isMaintenanceScheduled();
+                const overlay = document.getElementById('maintenance-overlay');
+                const container = document.querySelector('.container');
+
+                if (!overlay) return;
+
+                if (shouldMaintenance) {
+                    overlay.classList.add('show');
+                    if (container) container.style.opacity = '0.15';
+                    console.log('🔧 Maintenance: ON (jadwal aktif)');
+                } else {
+                    overlay.classList.remove('show');
+                    if (container) container.style.opacity = '1';
+                    console.log('✅ Maintenance: OFF (aplikasi aktif)');
+                }
+            }
+
+            // ─── EXPOSE FUNGSI KE CONSOLE ────────────────────────────────────
+            window.getMaintenanceStatus = function() {
+                const status = isMaintenanceScheduled();
+                const now = new Date();
+                const jakarta = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Jakarta' }));
+                console.log('🕐 Waktu Jakarta:', jakarta.toLocaleString());
+                console.log('📊 Maintenance:', status ? 'ON' : 'OFF');
+                console.log('🔧 Manual Override:', manualOverride === null ? 'AUTO' : manualOverride ? 'ON' : 'OFF');
+                return status;
+            };
+
+            window.showMaintenanceSchedule = function() {
+                console.log('📅 MAINTENANCE SCHEDULE (WIB):');
+                console.log('┌─────────────────────────────────────────────────┐');
+                console.log('│ Senin - Jumat : 14:00 - 03:00 (next day)      │');
+                console.log('│ Sabtu - Minggu: FULL 24 jam                   │');
+                console.log('│ Timezone     : Asia/Jakarta (WIB)             │');
+                console.log('└─────────────────────────────────────────────────┘');
+                console.log('');
+                console.log('🔧 COMMANDS (ketik di console):');
+                console.log('  setMaintenanceOverride(true)   → Paksa ON');
+                console.log('  setMaintenanceOverride(false)  → Paksa OFF');
+                console.log('  setMaintenanceOverride(null)   → Kembali ke jadwal auto');
+                console.log('  getMaintenanceStatus()         → Cek status saat ini');
+                console.log('  showMaintenanceSchedule()      → Lihat jadwal');
+            };
 
             // ================================================================
             //  URADVISOR v0.1 — STRUCTURE ENGINE
@@ -2241,6 +2424,12 @@ if (hitTP) {
                         updateGlobalPulse();
                     }
                 });
+
+                // ─── JALANKAN MAINTENANCE SCHEDULER ──────────────────────────
+                setTimeout(checkScheduledMaintenance, 1000);
+                setInterval(checkScheduledMaintenance, MAINTENANCE_CONFIG.checkInterval);
+                console.log('📅 Maintenance scheduler aktif (WIB)');
+                window.showMaintenanceSchedule();
             }
 
             if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
